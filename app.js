@@ -656,40 +656,71 @@
     }
   }
 
+  function createSessionFileCard(file) {
+    const card = document.createElement("article");
+    card.className = "session-file";
+    card.dataset.fileId = file.id;
+
+    const info = document.createElement("div");
+    info.className = "session-file-info";
+    const name = document.createElement("strong");
+    name.textContent = file.name;
+    const meta = document.createElement("small");
+    const when = new Date(file.createdAt * 1000).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    meta.textContent = `${file.device} · ${formatBytes(file.size)} · ${when}`;
+    info.append(name, meta);
+
+    const download = document.createElement("a");
+    download.href = file.url;
+    download.download = file.name;
+    download.textContent = "Download";
+
+    const player = document.createElement("audio");
+    player.controls = true;
+    player.preload = "none";
+    player.src = file.url;
+    card.append(info, download, player);
+    return card;
+  }
+
   function renderSessionFiles(files) {
-    elements.sessionFiles.replaceChildren();
+    const incomingIds = new Set(files.map((file) => file.id));
+    const existingCards = new Map();
+
+    elements.sessionFiles.querySelectorAll(".session-file").forEach((card) => {
+      if (!incomingIds.has(card.dataset.fileId)) {
+        card.querySelector("audio")?.pause();
+        card.remove();
+      } else {
+        existingCards.set(card.dataset.fileId, card);
+      }
+    });
+
     if (!files.length) {
-      const empty = document.createElement("p");
-      empty.className = "session-empty";
-      empty.textContent = "No audio yet. Send a recording or upload a file from either device.";
-      elements.sessionFiles.appendChild(empty);
+      if (!elements.sessionFiles.querySelector(".session-empty")) {
+        const empty = document.createElement("p");
+        empty.className = "session-empty";
+        empty.textContent = "No audio yet. Send a recording or upload a file from either device.";
+        elements.sessionFiles.appendChild(empty);
+      }
       return;
     }
 
+    elements.sessionFiles.querySelector(".session-empty")?.remove();
+    const newCards = document.createDocumentFragment();
     [...files].reverse().forEach((file) => {
-      const card = document.createElement("article");
-      card.className = "session-file";
-      const info = document.createElement("div");
-      info.className = "session-file-info";
-      const name = document.createElement("strong");
-      name.textContent = file.name;
-      const meta = document.createElement("small");
-      const when = new Date(file.createdAt * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-      meta.textContent = `${file.device} · ${formatBytes(file.size)} · ${when}`;
-      info.append(name, meta);
-
-      const download = document.createElement("a");
-      download.href = file.url;
-      download.download = file.name;
-      download.textContent = "Download";
-
-      const player = document.createElement("audio");
-      player.controls = true;
-      player.preload = "none";
-      player.src = file.url;
-      card.append(info, download, player);
-      elements.sessionFiles.appendChild(card);
+      if (!existingCards.has(file.id)) {
+        newCards.appendChild(createSessionFileCard(file));
+      }
     });
+    if (newCards.childNodes.length) {
+      elements.sessionFiles.prepend(newCards);
+    }
   }
 
   async function uploadToSession(blob, filename) {

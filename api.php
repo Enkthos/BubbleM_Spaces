@@ -7,9 +7,14 @@ error_reporting(E_ALL);
 const SESSION_LIFETIME = 86400;
 const MAX_UPLOAD_BYTES = 26214400;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const API_VERSION = 2;
+const API_VERSION = 3;
 
-$storageRoot = __DIR__ . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'sessions';
+$configuredStorageRoot = getenv('BUBBLEM_STORAGE_PATH');
+$preferredStorageRoot = $configuredStorageRoot !== false && trim($configuredStorageRoot) !== ''
+    ? rtrim($configuredStorageRoot, '/\\')
+    : __DIR__ . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'sessions';
+$storageRoot = '';
+$storageMode = '';
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -122,8 +127,34 @@ function cleanupExpired(string $root): void
     }
 }
 
-if (!is_dir($storageRoot) && !mkdir($storageRoot, 0750, true) && !is_dir($storageRoot)) {
-    fail('Server storage is unavailable.', 500);
+function prepareStorageDirectory(string $path): bool
+{
+    if (!is_dir($path) && !@mkdir($path, 0750, true) && !is_dir($path)) {
+        return false;
+    }
+
+    @chmod($path, 0750);
+    $probe = $path . DIRECTORY_SEPARATOR . '.write-test-' . bin2hex(random_bytes(4));
+    if (@file_put_contents($probe, 'ok', LOCK_EX) === false) {
+        return false;
+    }
+    @unlink($probe);
+    return true;
+}
+
+if (prepareStorageDirectory($preferredStorageRoot)) {
+    $storageRoot = $preferredStorageRoot;
+    $storageMode = $configuredStorageRoot !== false && trim($configuredStorageRoot) !== ''
+        ? 'configured'
+        : 'project';
+} else {
+    $fallbackName = 'bubble-m-sessions-' . substr(hash('sha256', __DIR__), 0, 16);
+    $fallbackRoot = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . $fallbackName;
+    if (!prepareStorageDirectory($fallbackRoot)) {
+        fail('No writable session storage is available. Set BUBBLEM_STORAGE_PATH to a writable directory.', 500);
+    }
+    $storageRoot = $fallbackRoot;
+    $storageMode = 'temporary';
 }
 
 cleanupExpired($storageRoot);
@@ -136,6 +167,7 @@ if ($action === 'health') {
         'apiVersion' => API_VERSION,
         'phpVersion' => PHP_VERSION,
         'storageWritable' => $writable,
+        'storageMode' => $storageMode,
         'maxUploadBytes' => MAX_UPLOAD_BYTES,
     ], $writable ? 200 : 503);
 }

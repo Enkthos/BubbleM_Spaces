@@ -37,11 +37,16 @@ The session code is the access key, so share it only with the intended person.
 
 For online deployment, upload `api.php`, `.htaccess`, and the `storage` folder
 alongside the frontend files. The host must execute PHP 7.4 or newer, have the
-PHP `fileinfo` extension enabled, and allow PHP to write to `storage/sessions`.
-Static-only hosting cannot run shared sessions.
+PHP `fileinfo` extension enabled, and ideally allow PHP to write to
+`storage/sessions`. If that project directory is read-only, the API
+automatically uses a private directory under PHP's writable temporary folder.
+For persistent custom storage, set the `BUBBLEM_STORAGE_PATH` environment
+variable to a writable directory outside the public web root. Static-only
+hosting cannot run shared sessions.
 
 After deployment, open `api.php?action=health` in the browser. A working setup
-returns JSON containing `"ok":true` and `"storageWritable":true`.
+returns JSON containing `"ok":true`, `"storageWritable":true`, and a
+`"storageMode"` value of `"project"`, `"configured"`, or `"temporary"`.
 
 Recordings stay in browser memory unless the user explicitly sends them to a
 shared session. MP3 encoding runs in the browser through `lamejs`, loaded from
