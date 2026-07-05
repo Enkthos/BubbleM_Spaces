@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f1ea" />
+    <meta name="description" content="Record, trim, polish, and export audio as MP3." />
+    <title>Bubble M — Pocket audio editor</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Bubble M home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Bubble M</span>
+        </a>
+        <div class="topbar-actions">
+          <span class="privacy-note">Private by default</span>
+          <button class="session-trigger" id="sessionButton" type="button">
+            <span class="session-dot" aria-hidden="true"></span>
+            <span id="sessionButtonLabel">Share session</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="hero" id="recorderView" aria-labelledby="heroTitle">
+        <div>
+          <p class="eyebrow">Pocket audio editor</p>
+          <h1 id="heroTitle">Catch the thought.<br />Shape the sound.</h1>
+          <p class="intro">Record a voice note, trim the edges, and save a clean MP3.</p>
+        </div>
+
+        <div class="record-area">
+          <button class="record-button" id="recordButton" type="button" aria-label="Start recording">
+            <span class="record-core" aria-hidden="true"></span>
+          </button>
+          <div class="record-copy" aria-live="polite">
+            <strong id="recordLabel">Tap to record</strong>
+            <span id="recordTimer">00:00.0</span>
+          </div>
+        </div>
+
+        <p class="permission-note" id="permissionNote">
+          Your browser will ask for microphone access.
+        </p>
+      </section>
+
+      <section class="editor" id="editorView" aria-labelledby="editorTitle" hidden>
+        <div class="editor-heading">
+          <div>
+            <p class="eyebrow">Your recording</p>
+            <h1 id="editorTitle">Make the cut.</h1>
+          </div>
+          <button class="text-button" id="newButton" type="button">New recording</button>
+        </div>
+
+        <div class="wave-card">
+          <div class="wave-meta">
+            <span id="currentTime">00:00.0</span>
+            <span id="selectionDuration">00:00.0 selected</span>
+          </div>
+          <div class="waveform-wrap" id="waveformWrap">
+            <canvas id="waveform" aria-label="Waveform preview"></canvas>
+            <div class="cut-shade cut-shade-left" id="leftShade"></div>
+            <div class="cut-shade cut-shade-right" id="rightShade"></div>
+            <div class="playhead" id="playhead"></div>
+          </div>
+          <div class="range-stack">
+            <input id="trimStart" class="range range-start" type="range" min="0" max="1000" value="0" aria-label="Trim start" />
+            <input id="trimEnd" class="range range-end" type="range" min="0" max="1000" value="1000" aria-label="Trim end" />
+          </div>
+          <div class="cut-labels">
+            <label>
+              <span>In</span>
+              <input id="startTimeInput" inputmode="decimal" value="0.0" aria-label="Trim start in seconds" />
+            </label>
+            <label>
+              <span>Out</span>
+              <input id="endTimeInput" inputmode="decimal" value="0.0" aria-label="Trim end in seconds" />
+            </label>
+          </div>
+        </div>
+
+        <div class="transport">
+          <button class="play-button" id="playButton" type="button">
+            <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg>
+            <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+            <span>Preview cut</span>
+          </button>
+        </div>
+
+        <div class="tools" aria-label="Audio adjustments">
+          <label class="tool-toggle">
+            <input id="fadeIn" type="checkbox" />
+            <span class="toggle-box" aria-hidden="true"></span>
+            <span><strong>Fade in</strong><small>Soft opening</small></span>
+          </label>
+          <label class="tool-toggle">
+            <input id="fadeOut" type="checkbox" />
+            <span class="toggle-box" aria-hidden="true"></span>
+            <span><strong>Fade out</strong><small>Clean ending</small></span>
+          </label>
+          <label class="tool-toggle">
+            <input id="normalize" type="checkbox" checked />
+            <span class="toggle-box" aria-hidden="true"></span>
+            <span><strong>Level sound</strong><small>Even volume</small></span>
+          </label>
+        </div>
+
+        <div class="export-row">
+          <div class="export-actions">
+            <button class="export-button" id="exportButton" type="button">
+              <span id="exportLabel">Save as MP3</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14"/></svg>
+            </button>
+            <button class="send-button" id="sendSessionButton" type="button" hidden>
+              Send to <span id="sendSessionCode"></span>
+            </button>
+          </div>
+          <p id="exportStatus" role="status">128 kbps · edited selection</p>
+        </div>
+      </section>
+    </main>
+
+    <div class="session-layer" id="sessionLayer" hidden>
+      <button class="session-backdrop" id="sessionBackdrop" type="button" aria-label="Close shared session"></button>
+      <section class="session-panel" role="dialog" aria-modal="true" aria-labelledby="sessionTitle">
+        <div class="session-panel-head">
+          <div>
+            <p class="eyebrow">Device handoff</p>
+            <h2 id="sessionTitle">Shared session</h2>
+          </div>
+          <button class="close-button" id="closeSessionButton" type="button" aria-label="Close">×</button>
+        </div>
+
+        <div id="sessionSetup">
+          <p class="session-intro">Move audio between your phone and computer. Create a code on one, then enter it on the other.</p>
+          <button class="create-session-button" id="createSessionButton" type="button">
+            Create a new session
+            <span aria-hidden="true">↗</span>
+          </button>
+          <div class="session-divider"><span>or join with a code</span></div>
+          <form class="join-form" id="joinSessionForm">
+            <input id="sessionCodeInput" type="text" inputmode="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A7K9P2" aria-label="Six-character session code" />
+            <button type="submit">Join</button>
+          </form>
+          <p class="session-footnote">Codes expire after 24 hours. Anyone with the code can access its audio.</p>
+        </div>
+
+        <div id="sessionConnected" hidden>
+          <div class="code-card">
+            <span>Session code</span>
+            <strong id="activeSessionCode">———</strong>
+            <button id="copySessionCode" type="button">Copy code</button>
+          </div>
+
+          <div class="session-actions">
+            <button id="uploadCurrentButton" type="button" hidden>Send current edit</button>
+            <label class="file-upload-button">
+              <input id="sessionFileInput" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm" />
+              <span>Upload audio file</span>
+            </label>
+          </div>
+
+          <div class="session-feed-head">
+            <div>
+              <h3>Audio in this session</h3>
+              <span id="sessionSyncStatus">Synced just now</span>
+            </div>
+            <button id="refreshSessionButton" type="button" aria-label="Refresh session">↻</button>
+          </div>
+          <div class="session-files" id="sessionFiles"></div>
+
+          <button class="leave-session-button" id="leaveSessionButton" type="button">Leave this session</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="alert" hidden></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
