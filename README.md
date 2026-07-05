@@ -35,6 +35,14 @@ Session audio is stored under `storage/sessions` and served only through
 `api.php`. Sessions expire after 24 hours and each upload is limited to 25 MB.
 The session code is the access key, so share it only with the intended person.
 
+For online deployment, upload `api.php`, `.htaccess`, and the `storage` folder
+alongside the frontend files. The host must execute PHP 7.4 or newer, have the
+PHP `fileinfo` extension enabled, and allow PHP to write to `storage/sessions`.
+Static-only hosting cannot run shared sessions.
+
+After deployment, open `api.php?action=health` in the browser. A working setup
+returns JSON containing `"ok":true` and `"storageWritable":true`.
+
 Recordings stay in browser memory unless the user explicitly sends them to a
 shared session. MP3 encoding runs in the browser through `lamejs`, loaded from
 jsDelivr.

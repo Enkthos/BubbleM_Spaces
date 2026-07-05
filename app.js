@@ -2,6 +2,7 @@
   "use strict";
 
   const $ = (selector) => document.querySelector(selector);
+  const API_URL = new URL("api.php", document.currentScript?.src || document.baseURI);
   const elements = {
     recorderView: $("#recorderView"),
     editorView: $("#editorView"),
@@ -505,10 +506,19 @@
   async function apiRequest(action, options = {}) {
     const { params = {}, ...fetchOptions } = options;
     const query = new URLSearchParams({ action, ...params });
-    const response = await fetch(`api.php?${query.toString()}`, {
-      cache: "no-store",
-      ...fetchOptions
-    });
+    const requestUrl = new URL(API_URL);
+    requestUrl.search = query.toString();
+    let response;
+    try {
+      response = await fetch(requestUrl, {
+        cache: "no-store",
+        ...fetchOptions
+      });
+    } catch (cause) {
+      const error = new Error(`Cannot reach the session API at ${requestUrl.pathname}.`);
+      error.cause = cause;
+      throw error;
+    }
     const responseText = await response.text();
     const jsonStart = responseText.indexOf("{");
     const jsonEnd = responseText.lastIndexOf("}");
@@ -519,7 +529,19 @@
       } catch (_) {}
     }
     if (!response.ok || !data?.ok) {
-      const error = new Error(data?.error || "The session server did not respond.");
+      let message = data?.error;
+      if (!message && data?.storageWritable === false) {
+        message = "Session storage is not writable on the server.";
+      } else if (!message && response.status === 404) {
+        message = `Session API not found at ${requestUrl.pathname}. Upload api.php beside app.js.`;
+      } else if (!message && response.status >= 500) {
+        message = `Session server error (HTTP ${response.status}). Check the server PHP error log and storage permissions.`;
+      } else if (!message && responseText.includes("<?php")) {
+        message = "This host is serving PHP as text instead of executing it. Shared sessions require PHP hosting.";
+      } else if (!message) {
+        message = `Invalid response from the session server (HTTP ${response.status}).`;
+      }
+      const error = new Error(message);
       error.status = response.status;
       throw error;
     }

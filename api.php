@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 const SESSION_LIFETIME = 86400;
 const MAX_UPLOAD_BYTES = 26214400;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const API_VERSION = 2;
 
 $storageRoot = __DIR__ . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'sessions';
 
@@ -90,7 +91,9 @@ function cleanDevice(?string $device): string
 {
     $device = trim((string) $device);
     $device = preg_replace('/[^\pL\pN ._-]/u', '', $device) ?: 'Shared device';
-    return mb_substr($device, 0, 40);
+    return function_exists('mb_substr')
+        ? mb_substr($device, 0, 40)
+        : substr($device, 0, 40);
 }
 
 function safeDownloadName(string $name): string
@@ -125,6 +128,17 @@ if (!is_dir($storageRoot) && !mkdir($storageRoot, 0750, true) && !is_dir($storag
 
 cleanupExpired($storageRoot);
 $action = (string) ($_GET['action'] ?? $_POST['action'] ?? '');
+
+if ($action === 'health') {
+    $writable = is_writable($storageRoot);
+    jsonResponse([
+        'ok' => $writable,
+        'apiVersion' => API_VERSION,
+        'phpVersion' => PHP_VERSION,
+        'storageWritable' => $writable,
+        'maxUploadBytes' => MAX_UPLOAD_BYTES,
+    ], $writable ? 200 : 503);
+}
 
 if ($action === 'create') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -175,6 +189,9 @@ if ($action === 'upload') {
         fail('Audio files must be smaller than 25 MB.');
     }
 
+    if (!class_exists('finfo')) {
+        fail('The server PHP fileinfo extension is not enabled.', 500);
+    }
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = (string) $finfo->file($upload['tmp_name']);
     $extensions = [
@@ -246,13 +263,26 @@ if ($action === 'file') {
         fail('Audio file not found.', 404);
     }
     $extension = pathinfo((string) $match['name'], PATHINFO_EXTENSION);
-    $storedExtension = match ((string) $match['mime']) {
-        'audio/mpeg', 'audio/mp3' => 'mp3',
-        'audio/mp4', 'video/mp4' => 'm4a',
-        'audio/webm', 'video/webm' => 'webm',
-        'audio/ogg', 'application/ogg' => 'ogg',
-        default => $extension ?: 'wav',
-    };
+    switch ((string) $match['mime']) {
+        case 'audio/mpeg':
+        case 'audio/mp3':
+            $storedExtension = 'mp3';
+            break;
+        case 'audio/mp4':
+        case 'video/mp4':
+            $storedExtension = 'm4a';
+            break;
+        case 'audio/webm':
+        case 'video/webm':
+            $storedExtension = 'webm';
+            break;
+        case 'audio/ogg':
+        case 'application/ogg':
+            $storedExtension = 'ogg';
+            break;
+        default:
+            $storedExtension = $extension ?: 'wav';
+    }
     $path = sessionDirectory($storageRoot, $code) . DIRECTORY_SEPARATOR . $id . '.' . $storedExtension;
     if (!is_file($path)) {
         fail('Audio file not found.', 404);
